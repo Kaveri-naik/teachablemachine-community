@@ -58,6 +58,9 @@ Learn more about how to use the code snippet on [github](https://github.com/goog
                 prediction[i].className + ": " + prediction[i].probability.toFixed(2);
             labelContainer.childNodes[i].innerHTML = classPrediction;
         }
+     if (prediction[0].className == "Rabbit" && prediction[0].probability > 0.9) {
+alert("Water Bottle Detected!");
+}
     }
 </script>
 ```
