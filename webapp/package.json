@@ -1,0 +1,11 @@
+{
+  "name": "module-image-detector",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Learn two images, then classify a new photo as Module 1, Module 2, or not a valid detection.",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test tests/decision.test.js"
+  }
+}

@@ -31,6 +31,7 @@ You have a few options:
 
 ## Community Contributions and Projects
 
+- [Module Image Detector](./webapp) — a browser app that learns two images, then classifies a new photo as Module 1, Module 2, or `not a valid detection`
 - [Teachable Machine Node Library for image models](https://github.com/tr7zw/teachablemachine-node-example) (Archived and now continued [here](https://github.com/drinkspiller/teachablemachine-node-example/))
 - [Teachable Machine Mobile for image models](https://github.com/mstale007/Teachable_Machine_Mobile/tree/master)
 
