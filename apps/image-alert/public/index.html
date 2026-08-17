@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LensAlert — image recognition email alerts</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="frame">
+      <header class="masthead">
+        <div>
+          <p class="kicker">Teachable Machine community</p>
+          <h1>LensAlert</h1>
+        </div>
+        <p class="lede">
+          Watch a camera or a photo. When a chosen class is recognized with enough
+          confidence, send an email alert — with an optional snapshot of the frame.
+        </p>
+      </header>
+
+      <main class="layout">
+        <section class="panel viewfinder" aria-labelledby="view-heading">
+          <div class="panel-head">
+            <h2 id="view-heading">Viewfinder</h2>
+            <p id="status-pill" class="pill idle" aria-live="polite">Idle</p>
+          </div>
+
+          <div class="stage">
+            <video id="video" playsinline muted hidden></video>
+            <img id="still" alt="Uploaded image for recognition" hidden />
+            <canvas id="overlay" width="640" height="480" aria-label="Recognition canvas"></canvas>
+            <p id="stage-hint" class="hint">Start the camera or drop in a photo.</p>
+          </div>
+
+          <div class="toolbar">
+            <button id="btn-camera" type="button">Start camera</button>
+            <button id="btn-stop" type="button" disabled>Stop</button>
+            <label class="file-btn">
+              Upload image
+              <input id="file-input" type="file" accept="image/*" />
+            </label>
+          </div>
+
+          <div id="predictions" class="predictions" aria-live="polite"></div>
+        </section>
+
+        <aside class="stack">
+          <section class="panel" aria-labelledby="model-heading">
+            <h2 id="model-heading">Model</h2>
+            <fieldset class="choice">
+              <legend class="sr-only">Recognition model</legend>
+              <label>
+                <input type="radio" name="model-mode" value="coco" checked />
+                Built-in objects (COCO-SSD)
+              </label>
+              <label>
+                <input type="radio" name="model-mode" value="teachable" />
+                Teachable Machine image model
+              </label>
+            </fieldset>
+            <p class="help" id="model-help">
+              Detects people, cars, animals, and 80 everyday objects in the browser. No
+              training required.
+            </p>
+            <label class="field" id="tm-field" hidden>
+              Model URL
+              <input
+                id="tm-url"
+                type="url"
+                placeholder="https://teachablemachine.withgoogle.com/models/MODEL_ID/"
+                autocomplete="off"
+              />
+            </label>
+            <button id="btn-load-model" type="button">Load model</button>
+            <p id="model-status" class="status-line">Model not loaded</p>
+          </section>
+
+          <section class="panel" aria-labelledby="rules-heading">
+            <h2 id="rules-heading">Alert rules</h2>
+            <p class="help">Email fires when any watched class is at or above the threshold.</p>
+            <div id="class-chips" class="chips"></div>
+            <label class="field">
+              Watched classes
+              <input id="watched" type="text" value="person" />
+            </label>
+            <div class="pair">
+              <label class="field">
+                Confidence
+                <input id="threshold" type="number" min="0.05" max="0.99" step="0.05" value="0.6" />
+              </label>
+              <label class="field">
+                Cooldown (seconds)
+                <input id="cooldown" type="number" min="5" max="3600" step="5" value="60" />
+              </label>
+            </div>
+            <label class="check">
+              <input id="alerts-enabled" type="checkbox" checked />
+              Send email when a rule matches
+            </label>
+            <label class="check">
+              <input id="include-snapshot" type="checkbox" checked />
+              Attach a snapshot of the frame
+            </label>
+          </section>
+
+          <section class="panel" aria-labelledby="mail-heading">
+            <h2 id="mail-heading">Email</h2>
+            <p id="smtp-note" class="help"></p>
+            <label class="field">
+              Recipient
+              <input id="email-to" type="email" placeholder="you@example.com" />
+            </label>
+            <div class="toolbar">
+              <button id="btn-test-email" type="button">Send test email</button>
+            </div>
+            <p id="mail-status" class="status-line"></p>
+          </section>
+        </aside>
+      </main>
+
+      <section class="panel log" aria-labelledby="log-heading">
+        <div class="panel-head">
+          <h2 id="log-heading">Alert log</h2>
+          <button id="btn-refresh-log" type="button" class="ghost">Refresh</button>
+        </div>
+        <ol id="alert-log" class="alert-log"></ol>
+      </section>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
