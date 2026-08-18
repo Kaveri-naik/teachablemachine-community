@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#14110d" />
+    <title>LensAlert Monitor</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="console">
+      <header class="topbar">
+        <div class="brand">
+          <img src="./icon.svg" alt="" width="28" height="28" />
+          <div>
+            <p class="kicker">Real-time monitor</p>
+            <h1>LensAlert</h1>
+          </div>
+        </div>
+        <div class="hud">
+          <p id="status-pill" class="pill idle">Standby</p>
+          <dl>
+            <div><dt>Uptime</dt><dd id="stat-uptime">00:00:00</dd></div>
+            <div><dt>FPS</dt><dd id="stat-fps">0.0</dd></div>
+            <div><dt>Frames</dt><dd id="stat-frames">0</dd></div>
+            <div><dt>Present</dt><dd id="stat-present">—</dd></div>
+          </dl>
+        </div>
+      </header>
+
+      <main class="grid">
+        <section class="stage-wrap" aria-labelledby="cam-heading">
+          <div class="stage-head">
+            <h2 id="cam-heading">CAM-01</h2>
+            <time id="timecode" datetime="">--:--:--</time>
+          </div>
+          <div class="stage" id="stage">
+            <video id="video" playsinline muted hidden></video>
+            <img id="still" alt="Uploaded still for recognition" hidden />
+            <canvas id="overlay" width="960" height="540" aria-label="Live recognition feed"></canvas>
+            <p id="stage-hint" class="hint">Arm the monitor to start a live camera or demo feed.</p>
+          </div>
+          <div class="sparkline-row">
+            <span>Hits / last 60s</span>
+            <canvas id="sparkline" width="640" height="48" aria-label="Detection activity sparkline"></canvas>
+          </div>
+          <div class="toolbar">
+            <button id="btn-camera" type="button">Arm camera</button>
+            <button id="btn-demo" type="button">Start demo feed</button>
+            <button id="btn-stop" type="button" disabled>Stop monitor</button>
+            <label class="file-btn">
+              Scan image
+              <input id="file-input" type="file" accept="image/*" />
+            </label>
+          </div>
+        </section>
+
+        <aside class="rail">
+          <section class="panel" aria-labelledby="now-heading">
+            <h2 id="now-heading">In frame</h2>
+            <div id="predictions" class="predictions">
+              <p class="help">No live detections yet.</p>
+            </div>
+          </section>
+
+          <section class="panel tape" aria-labelledby="tape-heading">
+            <div class="panel-head">
+              <h2 id="tape-heading">Live tape</h2>
+              <p id="stream-status" class="meta">connecting…</p>
+            </div>
+            <ol id="event-tape" class="tape-list"></ol>
+          </section>
+        </aside>
+      </main>
+
+      <details class="settings" open>
+        <summary>Monitor settings — model, watched classes, email</summary>
+        <div class="settings-grid">
+          <section class="panel" aria-labelledby="model-heading">
+            <h2 id="model-heading">Model</h2>
+            <fieldset class="choice">
+              <legend class="sr-only">Recognition model</legend>
+              <label>
+                <input type="radio" name="model-mode" value="coco" checked />
+                Built-in objects (COCO-SSD)
+              </label>
+              <label>
+                <input type="radio" name="model-mode" value="teachable" />
+                Teachable Machine image model
+              </label>
+            </fieldset>
+            <p class="help" id="model-help">
+              Live object detection in the browser. Demo feed works without a camera or model.
+            </p>
+            <label class="field" id="tm-field" hidden>
+              Model URL
+              <input
+                id="tm-url"
+                type="url"
+                placeholder="https://teachablemachine.withgoogle.com/models/MODEL_ID/"
+                autocomplete="off"
+              />
+            </label>
+            <button id="btn-load-model" type="button">Load model</button>
+            <p id="model-status" class="status-line">Model not loaded</p>
+          </section>
+
+          <section class="panel" aria-labelledby="rules-heading">
+            <h2 id="rules-heading">Watch rules</h2>
+            <p class="help">Email fires when a watched class <em>enters</em> the frame, not on every tick.</p>
+            <div id="class-chips" class="chips"></div>
+            <label class="field">
+              Watched classes
+              <input id="watched" type="text" value="person" />
+            </label>
+            <div class="pair">
+              <label class="field">
+                Confidence
+                <input id="threshold" type="number" min="0.05" max="0.99" step="0.05" value="0.6" />
+              </label>
+              <label class="field">
+                Cooldown (seconds)
+                <input id="cooldown" type="number" min="5" max="3600" step="5" value="60" />
+              </label>
+            </div>
+            <label class="check">
+              <input id="alerts-enabled" type="checkbox" checked />
+              Email on presence enter
+            </label>
+            <label class="check">
+              <input id="include-snapshot" type="checkbox" checked />
+              Attach a snapshot
+            </label>
+          </section>
+
+          <section class="panel" aria-labelledby="mail-heading">
+            <h2 id="mail-heading">Email</h2>
+            <p id="smtp-note" class="help"></p>
+            <label class="field">
+              Recipient
+              <input id="email-to" type="email" placeholder="you@example.com" />
+            </label>
+            <div class="toolbar">
+              <button id="btn-test-email" type="button">Send test email</button>
+            </div>
+            <p id="mail-status" class="status-line"></p>
+            <h3 class="subhead">Alert log</h3>
+            <ol id="alert-log" class="alert-log"></ol>
+            <button id="btn-refresh-log" type="button" class="ghost">Refresh log</button>
+          </section>
+        </div>
+      </details>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
