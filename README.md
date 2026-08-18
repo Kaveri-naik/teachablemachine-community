@@ -33,7 +33,7 @@ You have a few options:
 
 - [Teachable Machine Node Library for image models](https://github.com/tr7zw/teachablemachine-node-example) (Archived and now continued [here](https://github.com/drinkspiller/teachablemachine-node-example/))
 - [Teachable Machine Mobile for image models](https://github.com/mstale007/Teachable_Machine_Mobile/tree/master)
-- [LensAlert](./apps/image-alert) — browser image recognition (COCO-SSD or a Teachable Machine image model) that emails an alert when a watched class is detected
+- [LensAlert](./apps/image-alert) — real-time image recognition monitor (camera or demo feed) that emails an alert when a watched class enters the frame
 
 ## Disclaimer
 

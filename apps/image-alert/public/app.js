@@ -17,7 +17,7 @@ const COCO_CHIPS = [
 ];
 
 const STORAGE_KEY = "lensalert-settings-v1";
-const PREDICT_EVERY_MS = 350;
+const PREDICT_EVERY_MS = 280;
 
 const els = {
   video: document.getElementById("video"),
@@ -40,12 +40,21 @@ const els = {
   tmField: document.getElementById("tm-field"),
   tmUrl: document.getElementById("tm-url"),
   alertLog: document.getElementById("alert-log"),
+  eventTape: document.getElementById("event-tape"),
+  streamStatus: document.getElementById("stream-status"),
   btnCamera: document.getElementById("btn-camera"),
+  btnDemo: document.getElementById("btn-demo"),
   btnStop: document.getElementById("btn-stop"),
   btnLoadModel: document.getElementById("btn-load-model"),
   btnTestEmail: document.getElementById("btn-test-email"),
   btnRefreshLog: document.getElementById("btn-refresh-log"),
   fileInput: document.getElementById("file-input"),
+  uptime: document.getElementById("stat-uptime"),
+  fps: document.getElementById("stat-fps"),
+  frames: document.getElementById("stat-frames"),
+  present: document.getElementById("stat-present"),
+  timecode: document.getElementById("timecode"),
+  sparkline: document.getElementById("sparkline"),
 };
 
 const state = {
@@ -54,9 +63,13 @@ const state = {
   teachable: null,
   stream: null,
   looping: false,
+  source: "idle",
   lastPredict: 0,
   lastAlertAt: 0,
-  loadingScripts: false,
+  startedAt: 0,
+  frames: 0,
+  ticks: [],
+  histogram: new Array(60).fill(0),
 };
 
 function selectedMode() {
@@ -82,17 +95,19 @@ function parseWatched() {
 }
 
 function saveSettings() {
-  const payload = {
-    mode: selectedMode(),
-    tmUrl: els.tmUrl.value,
-    watched: els.watched.value,
-    threshold: els.threshold.value,
-    cooldown: els.cooldown.value,
-    alertsEnabled: els.alertsEnabled.checked,
-    includeSnapshot: els.includeSnapshot.checked,
-    emailTo: els.emailTo.value,
-  };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      mode: selectedMode(),
+      tmUrl: els.tmUrl.value,
+      watched: els.watched.value,
+      threshold: els.threshold.value,
+      cooldown: els.cooldown.value,
+      alertsEnabled: els.alertsEnabled.checked,
+      includeSnapshot: els.includeSnapshot.checked,
+      emailTo: els.emailTo.value,
+    })
+  );
 }
 
 function loadSettings() {
@@ -116,12 +131,11 @@ function loadSettings() {
 }
 
 function syncModeUi() {
-  const mode = selectedMode();
-  const teachable = mode === "teachable";
+  const teachable = selectedMode() === "teachable";
   els.tmField.hidden = !teachable;
   els.modelHelp.textContent = teachable
     ? "Paste the share URL from Teachable Machine’s Export panel. It should end with /models/MODEL_ID/."
-    : "Detects people, cars, animals, and 80 everyday objects in the browser. No training required.";
+    : "Detects people, cars, animals, and 80 everyday objects in the browser. Demo feed needs no model.";
   renderChips(teachable && state.teachable ? state.teachable.labels : COCO_CHIPS);
 }
 
@@ -136,10 +150,9 @@ function renderChips(classes) {
     button.addEventListener("click", () => {
       const current = parseWatched();
       const exists = current.some((item) => item.toLowerCase() === name.toLowerCase());
-      const next = exists
-        ? current.filter((item) => item.toLowerCase() !== name.toLowerCase())
-        : [...current, name];
-      els.watched.value = next.join(", ");
+      els.watched.value = exists
+        ? current.filter((item) => item.toLowerCase() !== name.toLowerCase()).join(", ")
+        : [...current, name].join(", ");
       saveSettings();
       renderChips(classes);
     });
@@ -220,17 +233,42 @@ async function loadSelectedModel() {
 }
 
 function fitCanvas(width, height) {
-  const canvas = els.overlay;
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
+  if (els.overlay.width !== width || els.overlay.height !== height) {
+    els.overlay.width = width;
+    els.overlay.height = height;
   }
 }
 
-function drawFrame(source) {
-  const ctx = els.overlay.getContext("2d");
-  fitCanvas(source.videoWidth || source.naturalWidth || source.width, source.videoHeight || source.naturalHeight || source.height);
-  ctx.drawImage(source, 0, 0, els.overlay.width, els.overlay.height);
+function formatClock(date = new Date()) {
+  return date.toLocaleTimeString(undefined, { hour12: false });
+}
+
+function formatUptime(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = String(Math.floor(total / 3600)).padStart(2, "0");
+  const minutes = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+  const seconds = String(total % 60).padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function currentFps() {
+  const cutoff = Date.now() - 2000;
+  state.ticks = state.ticks.filter((time) => time >= cutoff);
+  return state.ticks.length / 2;
+}
+
+function drawHud(ctx, detections) {
+  ctx.fillStyle = "rgba(20, 17, 13, 0.55)";
+  ctx.fillRect(0, 0, ctx.canvas.width, 28);
+  ctx.fillRect(0, ctx.canvas.height - 28, ctx.canvas.width, 28);
+  ctx.fillStyle = "#d9ccb4";
+  ctx.font = "12px monospace";
+  ctx.fillText(`CAM-01  ${formatClock()}  ${state.source.toUpperCase()}`, 10, 18);
+  ctx.fillText(
+    `${detections.length} objects  fps ${currentFps().toFixed(1)}`,
+    10,
+    ctx.canvas.height - 10
+  );
 }
 
 function drawBoxes(detections) {
@@ -239,16 +277,35 @@ function drawBoxes(detections) {
   for (const detection of detections) {
     if (!detection.bbox) continue;
     const [x, y, width, height] = detection.bbox;
-    ctx.strokeStyle = "#f3ead8";
+    ctx.strokeStyle = "#d4522b";
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, width, height);
     const label = `${detection.className} ${Math.round(detection.probability * 100)}%`;
-    const textWidth = ctx.measureText(label).width;
-    ctx.fillStyle = "#1c1914";
-    ctx.fillRect(x, Math.max(0, y - 20), textWidth + 10, 20);
-    ctx.fillStyle = "#f3ead8";
+    ctx.fillStyle = "#14110d";
+    ctx.fillRect(x, Math.max(0, y - 20), ctx.measureText(label).width + 10, 20);
+    ctx.fillStyle = "#ece4d4";
     ctx.fillText(label, x + 5, Math.max(14, y - 6));
   }
+}
+
+function drawDemoScene(detections, timestamp) {
+  const canvas = els.overlay;
+  fitCanvas(960, 540);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#0b1210";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "rgba(61, 186, 122, 0.12)";
+  for (let x = 0; x < canvas.width; x += 40) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+  const scan = (timestamp / 18) % canvas.height;
+  ctx.fillStyle = "rgba(61, 186, 122, 0.08)";
+  ctx.fillRect(0, scan, canvas.width, 18);
+  drawBoxes(detections);
+  drawHud(ctx, detections);
 }
 
 function renderPredictions(detections) {
@@ -257,7 +314,7 @@ function renderPredictions(detections) {
   els.predictions.innerHTML = "";
   const top = detections.slice(0, 6);
   if (!top.length) {
-    els.predictions.innerHTML = `<p class="help">No detections in this frame.</p>`;
+    els.predictions.innerHTML = `<p class="help">Scene is clear.</p>`;
     return;
   }
   for (const detection of top) {
@@ -274,6 +331,46 @@ function renderPredictions(detections) {
     `;
     els.predictions.appendChild(row);
   }
+}
+
+function drawSparkline(values) {
+  const canvas = els.sparkline;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const max = Math.max(1, ...values);
+  ctx.beginPath();
+  values.forEach((value, index) => {
+    const x = (index / Math.max(1, values.length - 1)) * canvas.width;
+    const y = canvas.height - (value / max) * (canvas.height - 4) - 2;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#d4522b";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function demoDetections(timestamp, width, height) {
+  const cycle = 8000;
+  const phase = timestamp % cycle;
+  const x = 120 + Math.sin(timestamp / 900) * 160;
+  const y = 150 + Math.cos(timestamp / 1100) * 50;
+  const detections = [];
+  if (phase < 5200) {
+    detections.push({
+      className: "person",
+      probability: 0.88 + Math.sin(timestamp / 400) * 0.04,
+      bbox: [x, y, 92, 188],
+    });
+  }
+  if (phase > 2800 && phase < 7200) {
+    detections.push({
+      className: "car",
+      probability: 0.74,
+      bbox: [width - 260, height - 140, 190, 86],
+    });
+  }
+  return detections;
 }
 
 async function predictCoco(source) {
@@ -301,60 +398,61 @@ async function predictTeachable(source) {
     return Array.from(logits.dataSync());
   });
   return labels
-    .map((className, index) => ({
-      className,
-      probability: probabilities[index] || 0,
-    }))
+    .map((className, index) => ({ className, probability: probabilities[index] || 0 }))
     .sort((a, b) => b.probability - a.probability);
 }
 
-async function runPrediction(source, origin) {
+async function recognize(source) {
   if (selectedMode() === "teachable") {
     if (!state.teachable) await loadTeachableModel();
-  } else if (!state.coco) {
-    await loadCocoModel();
+    return predictTeachable(source);
   }
-
-  drawFrame(source);
-  const detections =
-    selectedMode() === "teachable" ? await predictTeachable(els.overlay) : await predictCoco(els.overlay);
-  if (selectedMode() === "coco") {
-    drawFrame(source);
-    drawBoxes(detections);
-  }
-  renderPredictions(detections);
-  await maybeAlert(detections, origin);
-  return detections;
+  if (!state.coco) await loadCocoModel();
+  return predictCoco(source);
 }
 
-async function maybeAlert(detections, source) {
-  if (!els.alertsEnabled.checked) return;
-  const watched = parseWatched();
-  const threshold = Number(els.threshold.value);
-  const hits = detections.filter(
-    (item) =>
-      watched.some((name) => name.toLowerCase() === item.className.toLowerCase()) &&
-      item.probability >= threshold
-  );
-  if (!hits.length) return;
+function updateHud(present) {
+  els.uptime.textContent = state.startedAt ? formatUptime(Date.now() - state.startedAt) : "00:00:00";
+  els.fps.textContent = currentFps().toFixed(1);
+  els.frames.textContent = String(state.frames);
+  els.present.textContent = present.length ? present.join(", ") : "—";
+  els.timecode.textContent = formatClock();
+  els.timecode.dateTime = new Date().toISOString();
+}
 
+async function publishTick(detections) {
+  const response = await fetch("/api/monitor/tick", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source: state.source,
+      detections: detections.map(({ className, probability, bbox }) => ({ className, probability, bbox })),
+      watchedClasses: parseWatched(),
+      threshold: Number(els.threshold.value),
+      fps: currentFps(),
+    }),
+  });
+  return response.json();
+}
+
+async function maybeAlert(detections, enteredHits) {
+  if (!els.alertsEnabled.checked || !enteredHits?.length) return;
   const cooldownMs = Number(els.cooldown.value) * 1000;
   if (Date.now() - state.lastAlertAt < cooldownMs) return;
-
-  const body = {
-    to: els.emailTo.value.trim(),
-    detections: detections.map(({ className, probability }) => ({ className, probability })),
-    watchedClasses: watched,
-    threshold,
-    cooldownMs,
-    source,
-    snapshot: els.includeSnapshot.checked ? els.overlay.toDataURL("image/jpeg", 0.7) : undefined,
-  };
 
   const response = await fetch("/api/alerts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      to: els.emailTo.value.trim(),
+      detections: detections.map(({ className, probability }) => ({ className, probability })),
+      watchedClasses: parseWatched(),
+      threshold: Number(els.threshold.value),
+      cooldownMs,
+      source: state.source,
+      snapshot: els.includeSnapshot.checked ? els.overlay.toDataURL("image/jpeg", 0.7) : undefined,
+      notes: `Presence enter: ${enteredHits.map((hit) => hit.className).join(", ")}`,
+    }),
   });
   const payload = await response.json();
   if (response.status === 429) {
@@ -366,18 +464,54 @@ async function maybeAlert(detections, source) {
     return;
   }
   state.lastAlertAt = Date.now();
-  setStatus("alert", `Alert: ${hits[0].className}`);
+  setStatus("alert", `Alert: ${enteredHits[0].className}`);
   const mode = payload.alert?.delivery?.mode === "smtp" ? "emailed" : "saved to outbox";
   els.mailStatus.textContent = `Alert ${mode}: ${payload.alert.subject}`;
   await refreshLog();
 }
 
+async function runFrame(sourceEl, origin, timestamp = performance.now()) {
+  let detections;
+  if (origin === "demo") {
+    detections = demoDetections(timestamp, els.overlay.width, els.overlay.height);
+    drawDemoScene(detections, timestamp);
+  } else {
+    const ctx = els.overlay.getContext("2d");
+    fitCanvas(
+      sourceEl.videoWidth || sourceEl.naturalWidth || sourceEl.width,
+      sourceEl.videoHeight || sourceEl.naturalHeight || sourceEl.height
+    );
+    ctx.drawImage(sourceEl, 0, 0, els.overlay.width, els.overlay.height);
+    detections = await recognize(els.overlay);
+    ctx.drawImage(sourceEl, 0, 0, els.overlay.width, els.overlay.height);
+    drawBoxes(detections);
+    drawHud(ctx, detections);
+  }
+
+  state.frames += 1;
+  state.ticks.push(Date.now());
+  renderPredictions(detections);
+  const tick = await publishTick(detections);
+  updateHud(tick.present || []);
+  if (tick.enteredHits?.length) {
+    setStatus("alert", `Entered: ${tick.enteredHits.map((hit) => hit.className).join(", ")}`);
+  } else if (state.looping) {
+    setStatus("live", origin === "demo" ? "Demo live" : "Monitoring");
+  }
+  await maybeAlert(detections, tick.enteredHits);
+  return detections;
+}
+
 async function loop(timestamp) {
   if (!state.looping) return;
-  if (timestamp - state.lastPredict >= PREDICT_EVERY_MS && els.video.readyState >= 2) {
+  if (timestamp - state.lastPredict >= PREDICT_EVERY_MS) {
     state.lastPredict = timestamp;
     try {
-      await runPrediction(els.video, "webcam");
+      if (state.source === "demo") {
+        await runFrame(null, "demo", timestamp);
+      } else if (els.video.readyState >= 2) {
+        await runFrame(els.video, "webcam", timestamp);
+      }
     } catch (error) {
       els.modelStatus.textContent = error.message;
     }
@@ -385,48 +519,81 @@ async function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
+async function beginSession(source) {
+  state.source = source;
+  state.startedAt = Date.now();
+  state.frames = 0;
+  state.ticks = [];
+  await fetch("/api/monitor/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+}
+
 async function startCamera() {
   try {
+    stopLocalMedia();
     await loadSelectedModel();
     state.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
+      video: { facingMode: "environment", width: { ideal: 960 }, height: { ideal: 540 } },
       audio: false,
     });
     els.video.srcObject = state.stream;
     await els.video.play();
     els.still.hidden = true;
     setHint("");
+    await beginSession("webcam");
     state.looping = true;
     els.btnStop.disabled = false;
     setStatus("live", "Monitoring");
     requestAnimationFrame(loop);
   } catch (error) {
-    setStatus("idle", "Idle");
+    setStatus("idle", "Standby");
     els.modelStatus.textContent = error.message;
   }
 }
 
-function stopCamera() {
+async function startDemo() {
+  stopLocalMedia();
+  els.still.hidden = true;
+  setHint("");
+  await beginSession("demo");
+  state.looping = true;
+  els.btnStop.disabled = false;
+  setStatus("live", "Demo live");
+  els.modelStatus.textContent = "Demo feed armed — synthetic person/car presence, no camera required.";
+  requestAnimationFrame(loop);
+}
+
+function stopLocalMedia() {
   state.looping = false;
   if (state.stream) {
     for (const track of state.stream.getTracks()) track.stop();
     state.stream = null;
   }
   els.video.srcObject = null;
+}
+
+async function stopMonitor() {
+  stopLocalMedia();
   els.btnStop.disabled = true;
-  setStatus("idle", "Idle");
+  state.source = "idle";
+  setStatus("idle", "Standby");
+  await fetch("/api/monitor/stop", { method: "POST" });
 }
 
 async function onFile(event) {
   const file = event.target.files?.[0];
   if (!file) return;
-  stopCamera();
+  await stopMonitor();
   const url = URL.createObjectURL(file);
   els.still.onload = async () => {
     setHint("");
     els.still.hidden = false;
     try {
-      await runPrediction(els.still, "upload");
+      await beginSession("upload");
+      await runFrame(els.still, "upload");
       setStatus("live", "Image scanned");
     } catch (error) {
       els.modelStatus.textContent = error.message;
@@ -436,6 +603,69 @@ async function onFile(event) {
   };
   els.still.src = url;
   event.target.value = "";
+}
+
+function renderTape(events) {
+  els.eventTape.innerHTML = "";
+  const items = (events || []).filter((event) => event.type !== "tick" && event.type !== "hello");
+  if (!items.length) {
+    els.eventTape.innerHTML = `<li class="meta">Waiting for presence events.</li>`;
+    return;
+  }
+  for (const event of items.slice(0, 40)) {
+    const item = document.createElement("li");
+    item.className = event.type;
+    const when = new Date(event.at).toLocaleTimeString(undefined, { hour12: false });
+    if (event.type === "enter") {
+      item.innerHTML = `<strong>ENTER ${event.classes.join(", ")}</strong><span class="meta">${when} · ${event.source || ""}</span>`;
+    } else if (event.type === "exit") {
+      item.innerHTML = `<strong>EXIT ${event.classes.join(", ")}</strong><span class="meta">${when}</span>`;
+    } else if (event.type === "alert") {
+      item.innerHTML = `<strong>${event.alert?.subject || "Alert"}</strong><span class="meta">${when} · ${event.alert?.delivery?.mode || ""}</span>`;
+    } else {
+      item.innerHTML = `<strong>${event.type}</strong><span class="meta">${when}</span>`;
+    }
+    els.eventTape.appendChild(item);
+  }
+}
+
+function applySnapshot(snapshot) {
+  if (snapshot.histogram) {
+    state.histogram = snapshot.histogram;
+    drawSparkline(snapshot.histogram);
+  }
+  if (snapshot.events) renderTape(snapshot.events);
+  if (snapshot.session?.present) {
+    els.present.textContent = snapshot.session.present.length ? snapshot.session.present.join(", ") : "—";
+  }
+}
+
+function connectStream() {
+  const source = new EventSource("/api/monitor/events");
+  source.addEventListener("open", () => {
+    els.streamStatus.textContent = "live";
+  });
+  source.onerror = () => {
+    els.streamStatus.textContent = "reconnecting";
+  };
+  source.addEventListener("hello", (message) => {
+    applySnapshot(JSON.parse(message.data));
+  });
+  source.addEventListener("tick", (message) => {
+    const event = JSON.parse(message.data);
+    if (event.histogram) {
+      state.histogram = event.histogram;
+      drawSparkline(event.histogram);
+    }
+  });
+  for (const type of ["enter", "exit", "alert", "start", "stop"]) {
+    source.addEventListener(type, async (message) => {
+      const snapshot = await fetch("/api/monitor/status").then((response) => response.json());
+      applySnapshot(snapshot);
+      if (type === "alert") refreshLog();
+      void message;
+    });
+  }
 }
 
 async function sendTestEmail() {
@@ -451,7 +681,9 @@ async function sendTestEmail() {
     return;
   }
   els.mailStatus.textContent =
-    payload.mode === "smtp" ? "Test email sent via SMTP." : "SMTP is not configured; test message saved to data/outbox.";
+    payload.mode === "smtp"
+      ? "Test email sent via SMTP."
+      : "SMTP is not configured; test message saved to data/outbox.";
 }
 
 async function refreshLog() {
@@ -459,12 +691,14 @@ async function refreshLog() {
   const payload = await response.json();
   els.alertLog.innerHTML = "";
   if (!payload.alerts?.length) {
-    els.alertLog.innerHTML = `<li class="meta">No alerts yet.</li>`;
+    els.alertLog.innerHTML = `<li class="meta">No email alerts yet.</li>`;
     return;
   }
   for (const alert of payload.alerts) {
     const item = document.createElement("li");
-    const hits = (alert.hits || []).map((hit) => `${hit.className} ${Math.round(hit.probability * 100)}%`).join(", ");
+    const hits = (alert.hits || [])
+      .map((hit) => `${hit.className} ${Math.round(hit.probability * 100)}%`)
+      .join(", ");
     item.innerHTML = `
       <strong>${alert.subject}</strong>
       <span class="meta">${new Date(alert.at).toLocaleString()} · ${alert.delivery?.mode || "unknown"} · ${alert.to}</span>
@@ -475,14 +709,11 @@ async function refreshLog() {
 }
 
 async function loadConfig() {
-  const response = await fetch("/api/config");
-  const config = await response.json();
-  if (!els.emailTo.value && config.defaultTo) {
-    els.emailTo.value = config.defaultTo;
-  }
+  const config = await fetch("/api/config").then((response) => response.json());
+  if (!els.emailTo.value && config.defaultTo) els.emailTo.value = config.defaultTo;
   els.smtpNote.textContent = config.smtpConfigured
-    ? "SMTP is configured on the server. Matching detections will send a real email."
-    : "No SMTP settings yet. Alerts are written to data/outbox/ as HTML until you add SMTP to .env.";
+    ? "SMTP is configured. Presence-enter events will send a real email."
+    : "No SMTP yet. Alerts are written to data/outbox/ until you add SMTP to .env.";
 }
 
 function bind() {
@@ -502,14 +733,21 @@ function bind() {
     renderChips(selectedMode() === "teachable" && state.teachable ? state.teachable.labels : COCO_CHIPS)
   );
   els.btnCamera.addEventListener("click", startCamera);
-  els.btnStop.addEventListener("click", stopCamera);
+  els.btnDemo.addEventListener("click", startDemo);
+  els.btnStop.addEventListener("click", stopMonitor);
   els.btnLoadModel.addEventListener("click", () => loadSelectedModel().catch(() => {}));
   els.btnTestEmail.addEventListener("click", sendTestEmail);
   els.btnRefreshLog.addEventListener("click", refreshLog);
   els.fileInput.addEventListener("change", onFile);
+  setInterval(() => {
+    if (state.looping) updateHud(els.present.textContent === "—" ? [] : els.present.textContent.split(", "));
+    els.timecode.textContent = formatClock();
+  }, 250);
 }
 
 loadSettings();
 bind();
 loadConfig();
 refreshLog();
+connectStream();
+drawSparkline(state.histogram);

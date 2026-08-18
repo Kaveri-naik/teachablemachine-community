@@ -80,6 +80,16 @@ export function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
+export function diffPresence(previousClasses, currentClasses) {
+  const previous = new Set((previousClasses || []).map(normalizeClassName).filter(Boolean));
+  const current = new Set((currentClasses || []).map(normalizeClassName).filter(Boolean));
+  return {
+    entered: [...current].filter((name) => !previous.has(name)),
+    exited: [...previous].filter((name) => !current.has(name)),
+    present: [...current],
+  };
+}
+
 export function parseDataUrlImage(dataUrl, { maxBytes = 2_000_000 } = {}) {
   if (!dataUrl) {
     return null;

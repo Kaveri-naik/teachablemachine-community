@@ -4,6 +4,7 @@ import {
   clampCooldownMs,
   clampThreshold,
   cooldownKey,
+  diffPresence,
   findAlertHits,
   isInCooldown,
   isValidEmail,
@@ -87,6 +88,19 @@ describe("cooldown and helpers", () => {
 
   it("normalizes class names", () => {
     assert.equal(normalizeClassName("  Cell   Phone "), "cell phone");
+  });
+});
+
+describe("diffPresence", () => {
+  it("reports classes that entered and left the frame", () => {
+    const first = diffPresence([], ["person", "car"]);
+    assert.deepEqual(first.entered.sort(), ["car", "person"]);
+    assert.deepEqual(first.exited, []);
+
+    const next = diffPresence(["person", "car"], ["person"]);
+    assert.deepEqual(next.entered, []);
+    assert.deepEqual(next.exited, ["car"]);
+    assert.deepEqual(next.present, ["person"]);
   });
 });
 

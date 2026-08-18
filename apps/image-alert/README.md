@@ -1,26 +1,26 @@
-# LensAlert
+# LensAlert Monitor
 
-A small web app that **recognizes objects in a camera feed or photo** and **emails you when a watched class appears**.
+A real-time monitoring app: watch a camera (or a demo feed), recognize objects in the browser, and **email an alert when a watched class enters the frame**.
 
-It is meant as a Teachable Machine community example: use the built-in object detector immediately, or point it at a model you trained at [Teachable Machine](https://teachablemachine.withgoogle.com/).
+It is a Teachable Machine community example. Use the built-in detector immediately, or point it at a model you trained at [Teachable Machine](https://teachablemachine.withgoogle.com/).
 
 ```mermaid
 flowchart LR
-  camera[Camera or photo] --> model[COCO-SSD or Teachable Machine]
-  model --> rules[Watched class + confidence]
-  rules -->|match| api[LensAlert server]
-  api -->|SMTP configured| inbox[Email inbox]
-  api -->|no SMTP| outbox[data/outbox HTML]
+  feed[Camera, demo, or photo] --> model[COCO-SSD or Teachable Machine]
+  model --> presence[Enter / exit vs last frame]
+  presence --> sse[Live tape over SSE]
+  presence -->|class entered| mail[Email or outbox]
 ```
 
 ## What it does
 
-- Live webcam monitoring or a one-shot image upload
-- Built-in **COCO-SSD** detector (person, car, dog, and about 80 other objects) running in the browser with TensorFlow.js
-- Optional **Teachable Machine image model** via the share URL from the Export panel
-- Alert rules: watched classes, confidence threshold, cooldown
-- Email with the class name, confidence, time, and an optional snapshot of the frame
-- If SMTP is not configured, alerts are still saved as HTML under `data/outbox/` so you can try the full flow locally
+- Control-room monitor with live HUD: uptime, FPS, frames, classes currently present
+- **Arm camera** for real webcam monitoring, or **Start demo feed** (no camera or model required)
+- Presence tracking: tape shows `ENTER person` / `EXIT person` instead of alerting on every frame
+- Server-sent events so the live tape updates in real time
+- 60-second hit sparkline
+- Built-in **COCO-SSD** (person, car, dog, and ~80 objects) or a Teachable Machine image model
+- Email on presence-enter, with optional snapshot; otherwise HTML is saved under `data/outbox/`
 
 ## Run it
 
@@ -33,16 +33,16 @@ npm start
 
 Open [http://localhost:3847](http://localhost:3847).
 
-1. Click **Load model** (COCO-SSD is the default).
-2. **Start camera** or **Upload image**.
-3. Set watched classes (default is `person`) and a confidence threshold.
-4. Enter a recipient and optionally click **Send test email**.
+1. Click **Start demo feed** to see live enter/exit events immediately.
+2. Or **Load model** then **Arm camera** for real recognition.
+3. Watched class defaults to `person`. Emails fire when that class *enters*, then respect the cooldown.
+4. Enter a recipient and optionally **Send test email**.
 
-Recognition happens in the browser. The Node server only stores history and sends mail.
+Recognition runs in the browser. The Node server keeps the live session, streams events, stores history, and sends mail.
 
 ## Email setup
 
-Copy `.env.example` to `.env`. Without SMTP values, LensAlert writes each alert to `data/outbox/` instead of sending mail.
+Copy `.env.example` to `.env`. Without SMTP values, LensAlert writes each alert to `data/outbox/`.
 
 For Gmail, create an [App Password](https://support.google.com/accounts/answer/185833) and use:
 
@@ -61,11 +61,11 @@ Restart `npm start` after editing `.env`.
 
 1. Train an image model at [Teachable Machine](https://teachablemachine.withgoogle.com/).
 2. Export → TensorFlow.js → shareable link.
-3. In LensAlert, choose **Teachable Machine image model** and paste a URL like:
+3. Choose **Teachable Machine image model** and paste:
 
    `https://teachablemachine.withgoogle.com/models/MODEL_ID/`
 
-4. Load the model, then watch the class names you trained (for example `mask` / `no mask`, `ok` / `spill`).
+4. Load the model, then watch the class names you trained.
 
 ## Tests
 
@@ -73,8 +73,6 @@ Restart `npm start` after editing `.env`.
 cd apps/image-alert
 npm test
 ```
-
-The tests cover class matching, cooldown, snapshot validation, SMTP vs outbox delivery, and the HTTP API. They do not download TensorFlow models.
 
 ## Privacy notes
 

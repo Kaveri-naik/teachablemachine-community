@@ -1,0 +1,16 @@
+{
+  "name": "LensAlert Monitor",
+  "short_name": "LensAlert",
+  "description": "Real-time image recognition monitor with email alerts",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#14110d",
+  "theme_color": "#14110d",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

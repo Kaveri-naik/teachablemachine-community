@@ -3,49 +3,81 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LensAlert — image recognition email alerts</title>
+    <meta name="theme-color" content="#14110d" />
+    <title>LensAlert Monitor</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="frame">
-      <header class="masthead">
-        <div>
-          <p class="kicker">Teachable Machine community</p>
-          <h1>LensAlert</h1>
+    <div class="console">
+      <header class="topbar">
+        <div class="brand">
+          <img src="./icon.svg" alt="" width="28" height="28" />
+          <div>
+            <p class="kicker">Real-time monitor</p>
+            <h1>LensAlert</h1>
+          </div>
         </div>
-        <p class="lede">
-          Watch a camera or a photo. When a chosen class is recognized with enough
-          confidence, send an email alert — with an optional snapshot of the frame.
-        </p>
+        <div class="hud">
+          <p id="status-pill" class="pill idle">Standby</p>
+          <dl>
+            <div><dt>Uptime</dt><dd id="stat-uptime">00:00:00</dd></div>
+            <div><dt>FPS</dt><dd id="stat-fps">0.0</dd></div>
+            <div><dt>Frames</dt><dd id="stat-frames">0</dd></div>
+            <div><dt>Present</dt><dd id="stat-present">—</dd></div>
+          </dl>
+        </div>
       </header>
 
-      <main class="layout">
-        <section class="panel viewfinder" aria-labelledby="view-heading">
-          <div class="panel-head">
-            <h2 id="view-heading">Viewfinder</h2>
-            <p id="status-pill" class="pill idle" aria-live="polite">Idle</p>
+      <main class="grid">
+        <section class="stage-wrap" aria-labelledby="cam-heading">
+          <div class="stage-head">
+            <h2 id="cam-heading">CAM-01</h2>
+            <time id="timecode" datetime="">--:--:--</time>
           </div>
-
-          <div class="stage">
+          <div class="stage" id="stage">
             <video id="video" playsinline muted hidden></video>
-            <img id="still" alt="Uploaded image for recognition" hidden />
-            <canvas id="overlay" width="640" height="480" aria-label="Recognition canvas"></canvas>
-            <p id="stage-hint" class="hint">Start the camera or drop in a photo.</p>
+            <img id="still" alt="Uploaded still for recognition" hidden />
+            <canvas id="overlay" width="960" height="540" aria-label="Live recognition feed"></canvas>
+            <p id="stage-hint" class="hint">Arm the monitor to start a live camera or demo feed.</p>
           </div>
-
+          <div class="sparkline-row">
+            <span>Hits / last 60s</span>
+            <canvas id="sparkline" width="640" height="48" aria-label="Detection activity sparkline"></canvas>
+          </div>
           <div class="toolbar">
-            <button id="btn-camera" type="button">Start camera</button>
-            <button id="btn-stop" type="button" disabled>Stop</button>
+            <button id="btn-camera" type="button">Arm camera</button>
+            <button id="btn-demo" type="button">Start demo feed</button>
+            <button id="btn-stop" type="button" disabled>Stop monitor</button>
             <label class="file-btn">
-              Upload image
+              Scan image
               <input id="file-input" type="file" accept="image/*" />
             </label>
           </div>
-
-          <div id="predictions" class="predictions" aria-live="polite"></div>
         </section>
 
-        <aside class="stack">
+        <aside class="rail">
+          <section class="panel" aria-labelledby="now-heading">
+            <h2 id="now-heading">In frame</h2>
+            <div id="predictions" class="predictions">
+              <p class="help">No live detections yet.</p>
+            </div>
+          </section>
+
+          <section class="panel tape" aria-labelledby="tape-heading">
+            <div class="panel-head">
+              <h2 id="tape-heading">Live tape</h2>
+              <p id="stream-status" class="meta">connecting…</p>
+            </div>
+            <ol id="event-tape" class="tape-list"></ol>
+          </section>
+        </aside>
+      </main>
+
+      <details class="settings" open>
+        <summary>Monitor settings — model, watched classes, email</summary>
+        <div class="settings-grid">
           <section class="panel" aria-labelledby="model-heading">
             <h2 id="model-heading">Model</h2>
             <fieldset class="choice">
@@ -60,8 +92,7 @@
               </label>
             </fieldset>
             <p class="help" id="model-help">
-              Detects people, cars, animals, and 80 everyday objects in the browser. No
-              training required.
+              Live object detection in the browser. Demo feed works without a camera or model.
             </p>
             <label class="field" id="tm-field" hidden>
               Model URL
@@ -77,8 +108,8 @@
           </section>
 
           <section class="panel" aria-labelledby="rules-heading">
-            <h2 id="rules-heading">Alert rules</h2>
-            <p class="help">Email fires when any watched class is at or above the threshold.</p>
+            <h2 id="rules-heading">Watch rules</h2>
+            <p class="help">Email fires when a watched class <em>enters</em> the frame, not on every tick.</p>
             <div id="class-chips" class="chips"></div>
             <label class="field">
               Watched classes
@@ -96,11 +127,11 @@
             </div>
             <label class="check">
               <input id="alerts-enabled" type="checkbox" checked />
-              Send email when a rule matches
+              Email on presence enter
             </label>
             <label class="check">
               <input id="include-snapshot" type="checkbox" checked />
-              Attach a snapshot of the frame
+              Attach a snapshot
             </label>
           </section>
 
@@ -115,17 +146,12 @@
               <button id="btn-test-email" type="button">Send test email</button>
             </div>
             <p id="mail-status" class="status-line"></p>
+            <h3 class="subhead">Alert log</h3>
+            <ol id="alert-log" class="alert-log"></ol>
+            <button id="btn-refresh-log" type="button" class="ghost">Refresh log</button>
           </section>
-        </aside>
-      </main>
-
-      <section class="panel log" aria-labelledby="log-heading">
-        <div class="panel-head">
-          <h2 id="log-heading">Alert log</h2>
-          <button id="btn-refresh-log" type="button" class="ghost">Refresh</button>
         </div>
-        <ol id="alert-log" class="alert-log"></ol>
-      </section>
+      </details>
     </div>
     <script type="module" src="./app.js"></script>
   </body>

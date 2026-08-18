@@ -43,6 +43,7 @@ describe("LensAlert API", () => {
   it("reports health and public config", async () => {
     const health = await request(app).get("/api/health").expect(200);
     assert.equal(health.body.ok, true);
+    assert.equal(health.body.monitor.live, false);
     const config = await request(app).get("/api/config").expect(200);
     assert.equal(config.body.smtpConfigured, true);
     assert.equal(config.body.defaultTo, "default@example.com");
@@ -144,5 +145,56 @@ describe("LensAlert API", () => {
     assert.equal(response.body.alert.delivery.mode, "outbox");
     const files = await readdir(path.join(localDir, "outbox"));
     assert.ok(files.some((name) => name.endsWith(".html")));
+  });
+
+  it("tracks a live monitor session over HTTP", async () => {
+    await request(app).post("/api/monitor/start").send({ source: "demo" }).expect(201);
+    const tick = await request(app)
+      .post("/api/monitor/tick")
+      .send({
+        source: "demo",
+        detections: [{ className: "person", probability: 0.91, bbox: [1, 2, 3, 4] }],
+        watchedClasses: ["person"],
+        threshold: 0.6,
+        fps: 5,
+      })
+      .expect(200);
+    assert.deepEqual(tick.body.entered, ["person"]);
+    const status = await request(app).get("/api/monitor/status").expect(200);
+    assert.equal(status.body.session.source, "demo");
+    assert.deepEqual(status.body.session.present, ["person"]);
+    await request(app).post("/api/monitor/stop").expect(200);
+    const stopped = await request(app).get("/api/monitor/status").expect(200);
+    assert.equal(stopped.body.session.live, false);
+  });
+
+  it("streams monitor events over SSE", async () => {
+    const http = await import("node:http");
+    const server = app.listen(0);
+    await new Promise((resolve) => server.once("listening", resolve));
+    const { port } = server.address();
+    const chunks = [];
+    await new Promise((resolve, reject) => {
+      const req = http.get({ hostname: "127.0.0.1", port, path: "/api/monitor/events" }, (res) => {
+        assert.equal(res.statusCode, 200);
+        assert.match(res.headers["content-type"], /text\/event-stream/);
+        res.on("data", (chunk) => {
+          chunks.push(chunk.toString());
+          if (chunks.join("").includes("event: hello")) {
+            req.destroy();
+            resolve();
+          }
+        });
+      });
+      req.on("error", (error) => {
+        if (error.code === "ECONNRESET") {
+          resolve();
+          return;
+        }
+        reject(error);
+      });
+    });
+    server.close();
+    assert.match(chunks.join(""), /event: hello/);
   });
 });

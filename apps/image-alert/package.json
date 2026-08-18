@@ -2,7 +2,7 @@
   "name": "lensalert",
   "version": "1.0.0",
   "private": true,
-  "description": "Image recognition with email alerts. Uses COCO-SSD or a Teachable Machine image model, then emails you when a watched class is detected.",
+  "description": "Real-time image recognition monitor. Uses COCO-SSD or a Teachable Machine image model, then emails you when a watched class enters the frame.",
   "type": "module",
   "engines": {
     "node": ">=18"
