@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Module Image Detector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Source+Sans+3:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/styles.css" />
+  </head>
+  <body>
+    <header class="top-bar">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"></span>
+        Module Image Detector
+      </div>
+      <div id="status-pill" class="status-pill">Loading MobileNet…</div>
+    </header>
+
+    <section class="hero">
+      <h1>Teach two images. Detect the next one.</h1>
+      <p>
+        The browser learns Module 1 and Module 2 from one photo each, using
+        MobileNet embeddings and a small neural net. Any later image is labeled
+        <strong>Module 1 image detected</strong>,
+        <strong>Module 2 image detected</strong>, or
+        <strong>not a valid detection</strong>.
+      </p>
+    </section>
+
+    <main class="workspace">
+      <section class="learn-grid" aria-label="Training images">
+        <article class="module-card module-1">
+          <p class="eyebrow">Step 1</p>
+          <h2>Module 1</h2>
+          <label class="dropzone" data-drop="1">
+            <input id="file-1" type="file" accept="image/*" />
+            <div class="placeholder">Drop or choose the Module 1 photo</div>
+          </label>
+          <div class="module-meta">
+            <button id="learn-1" class="module-1" type="button" disabled>Learn Module 1</button>
+            <span id="meta-1">No image yet</span>
+          </div>
+        </article>
+
+        <article class="module-card module-2">
+          <p class="eyebrow">Step 2</p>
+          <h2>Module 2</h2>
+          <label class="dropzone" data-drop="2">
+            <input id="file-2" type="file" accept="image/*" />
+            <div class="placeholder">Drop or choose the Module 2 photo</div>
+          </label>
+          <div class="module-meta">
+            <button id="learn-2" class="module-2" type="button" disabled>Learn Module 2</button>
+            <span id="meta-2">No image yet</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="detect-card" aria-label="Detection">
+        <p class="eyebrow">Step 3</p>
+        <h2>Check a new image</h2>
+        <p>Upload a photo or capture one from the camera after both modules have been learned.</p>
+        <div class="detect-actions">
+          <label class="ghost-file">
+            Choose image
+            <input id="file-query" type="file" accept="image/*" hidden disabled />
+          </label>
+          <button id="camera-btn" class="secondary" type="button" disabled>Use camera</button>
+          <button id="capture-btn" class="primary" type="button" hidden>Capture &amp; detect</button>
+          <button id="reset-btn" class="secondary" type="button">Reset</button>
+        </div>
+        <label class="dropzone" id="query-drop">
+          <div class="placeholder" id="query-placeholder">Waiting for a photo to classify</div>
+        </label>
+        <div id="result" class="result-card" aria-live="polite">
+          <p class="eyebrow">Result</p>
+          <div class="label" id="result-label">Train both modules to begin</div>
+          <div class="bars">
+            <div class="bar-row">
+              <span>Module 1</span>
+              <div class="track"><div id="bar-1" class="fill one"></div></div>
+              <span id="pct-1">0%</span>
+            </div>
+            <div class="bar-row">
+              <span>Module 2</span>
+              <div class="track"><div id="bar-2" class="fill two"></div></div>
+              <span id="pct-2">0%</span>
+            </div>
+          </div>
+        </div>
+        <details class="advanced">
+          <summary>Detection sensitivity</summary>
+          <p>Raise these if unrelated photos are accepted. Lower them if true matches are rejected.</p>
+          <div class="threshold-row">
+            <label for="min-sim">Minimum similarity <span id="min-sim-val">0.58</span></label>
+            <input id="min-sim" type="range" min="0.40" max="0.85" step="0.01" value="0.58" />
+          </div>
+          <div class="threshold-row">
+            <label for="min-margin">Minimum margin <span id="min-margin-val">0.03</span></label>
+            <input id="min-margin" type="range" min="0.01" max="0.20" step="0.01" value="0.03" />
+          </div>
+        </details>
+      </section>
+    </main>
+
+    <section class="help">
+      <h2>How the model learns</h2>
+      <ol>
+        <li>MobileNet, a pretrained vision network, turns each photo into a numeric fingerprint.</li>
+        <li>Each training photo is lightly augmented (crop, flip, brightness) so the classifier sees more than one example per module.</li>
+        <li>A small dense network is trained on those fingerprints, then a new photo is compared with cosine similarity.</li>
+        <li>If the new photo is not close enough to either learned module, the app returns <code>not a valid detection</code>.</li>
+      </ol>
+    </section>
+
+    <footer class="footer">
+      <span>Runs entirely in your browser. Images are not uploaded to a server.</span>
+      <button id="retrain-btn" class="secondary" type="button" disabled>Retrain</button>
+    </footer>
+
+    <div id="overlay" class="overlay" role="status">
+      <div class="overlay-card">
+        <h2 id="overlay-title">Working</h2>
+        <p id="overlay-copy">Please wait.</p>
+        <div class="progress"><span id="overlay-bar"></span></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>
