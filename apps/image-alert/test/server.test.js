@@ -32,6 +32,8 @@ describe("LensAlert API", () => {
         ALERT_FROM: "LensAlert <alerts@example.com>",
         ALERT_TO: "default@example.com",
         SMTP_HOST: "smtp.example.com",
+        SMTP_USER: "alerts@example.com",
+        SMTP_PASS: "secret",
         ALERT_COOLDOWN_MS: "60000",
       },
       transport,

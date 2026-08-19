@@ -3,7 +3,30 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { buildAlertEmail, deliverMail } from "../lib/email.js";
+import { buildAlertEmail, deliverMail, smtpConfigured } from "../lib/email.js";
+
+describe("smtpConfigured", () => {
+  it("is false when Gmail user is set without an App Password", () => {
+    assert.equal(
+      smtpConfigured({
+        SMTP_HOST: "smtp.gmail.com",
+        SMTP_USER: "kaveri.naik@gmail.com",
+      }),
+      false
+    );
+  });
+
+  it("is true when host, user, and password are present", () => {
+    assert.equal(
+      smtpConfigured({
+        SMTP_HOST: "smtp.gmail.com",
+        SMTP_USER: "kaveri.naik@gmail.com",
+        SMTP_PASS: "app-password",
+      }),
+      true
+    );
+  });
+});
 
 describe("buildAlertEmail", () => {
   it("puts the top class in the subject and body", () => {
