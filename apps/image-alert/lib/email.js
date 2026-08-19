@@ -1,7 +1,17 @@
 import nodemailer from "nodemailer";
 
-export function createTransport(env = process.env) {
+export function smtpConfigured(env = process.env) {
   if (!env.SMTP_HOST) {
+    return false;
+  }
+  if (env.SMTP_USER && !env.SMTP_PASS) {
+    return false;
+  }
+  return true;
+}
+
+export function createTransport(env = process.env) {
+  if (!smtpConfigured(env)) {
     return null;
   }
   const port = Number(env.SMTP_PORT || 587);
@@ -15,10 +25,6 @@ export function createTransport(env = process.env) {
     secure: env.SMTP_SECURE === "true" || port === 465,
     auth,
   });
-}
-
-export function smtpConfigured(env = process.env) {
-  return Boolean(env.SMTP_HOST);
 }
 
 export function buildAlertEmail({ hits, source, timestamp, notes, includeSnapshot }) {

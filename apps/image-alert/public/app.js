@@ -710,10 +710,12 @@ async function refreshLog() {
 
 async function loadConfig() {
   const config = await fetch("/api/config").then((response) => response.json());
-  if (!els.emailTo.value && config.defaultTo) els.emailTo.value = config.defaultTo;
+  if (config.defaultTo && !els.emailTo.value) {
+    els.emailTo.value = config.defaultTo;
+  }
   els.smtpNote.textContent = config.smtpConfigured
-    ? "SMTP is configured. Presence-enter events will send a real email."
-    : "No SMTP yet. Alerts are written to data/outbox/ until you add SMTP to .env.";
+    ? `SMTP is configured. Alerts will be emailed to ${config.defaultTo || els.emailTo.value || "your Gmail"}.`
+    : `Alerts will go to ${config.defaultTo || "kaveri.naik@gmail.com"} after you add a Gmail App Password. Until then they are saved to data/outbox/.`;
 }
 
 function bind() {

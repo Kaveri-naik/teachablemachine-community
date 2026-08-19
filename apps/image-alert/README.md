@@ -49,10 +49,10 @@ For Gmail, create an [App Password](https://support.google.com/accounts/answer/1
 ```
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=you@gmail.com
+SMTP_USER=kaveri.naik@gmail.com
 SMTP_PASS=your-app-password
-ALERT_FROM=LensAlert <you@gmail.com>
-ALERT_TO=you@gmail.com
+ALERT_FROM=LensAlert <kaveri.naik@gmail.com>
+ALERT_TO=kaveri.naik@gmail.com
 ```
 
 Restart `npm start` after editing `.env`.
